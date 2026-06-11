@@ -1,135 +1,208 @@
-# AWS EC2 Monitoring with Terraform (CloudWatch + SNS Alerts)
+# 🚀 AWS Infrastructure Provisioning using Terraform Modules
+
+A modular Infrastructure as Code (IaC) project built using Terraform to provision AWS resources including a VPC, Subnet, Security Group, and EC2 Instance. The project demonstrates how reusable Terraform modules can be leveraged to build scalable and maintainable cloud infrastructure.
+
+---
 
 ## 📌 Project Overview
 
-This project demonstrates how to provision and monitor AWS infrastructure using **Terraform**. It follows a modular approach to deploy an Amazon EC2 instance, configure its security group, create Amazon SNS notifications, and set up Amazon CloudWatch alarms to monitor CPU utilization.
+This project provisions a basic AWS environment by separating infrastructure components into independent Terraform modules.
 
-The project showcases Infrastructure as Code (IaC) principles, reusable Terraform modules, and basic AWS monitoring capabilities.
+The infrastructure created includes:
 
-> **Note:** The repository reflects both the implemented functionality and a few issues identified during code review. Those improvements are documented under the "Known Issues & Enhancements" section.
+* A custom Virtual Private Cloud (VPC)
+* A public subnet within the VPC
+* A Security Group allowing SSH and HTTP traffic
+* An EC2 instance deployed inside the subnet
 
----
-
-## 📝 Project Description
-
-**AWS EC2 Monitoring and Alerting using Terraform**
-
-Designed and implemented a modular Terraform-based infrastructure solution to provision Amazon EC2 instances, configure security groups, create SNS email notifications, and establish CloudWatch CPU utilization monitoring. Utilized reusable modules and environment-specific configurations while identifying and documenting implementation improvements to enhance reliability and production readiness.
+The primary objective of this project is to demonstrate Terraform module development and inter-module dependency management.
 
 ---
 
+## 🏗️ Architecture
 
-## 🚀 Architecture
-
-```text
-Terraform
-│
-├── EC2 Module
-│     ├── Launch EC2 Instance
-│     └── Create Security Group
-│
-├── SNS Module
-│     ├── Create SNS Topic
-│     └── Create Email Subscription
-│
-└── CloudWatch Module
-      └── Monitor EC2 CPU Utilization
-             └── Trigger SNS Email Notifications
+```
+                        AWS (us-east-1)
+                               │
+                               ▼
+                    ┌─────────────────┐
+                    │       VPC       │
+                    │ 10.0.0.0/16     │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │ Public Subnet   │
+                    │ 10.0.1.0/24     │
+                    └────────┬────────┘
+                             │
+          ┌──────────────────┴──────────────────┐
+          ▼                                     ▼
+ ┌─────────────────┐                  ┌─────────────────┐
+ │ Security Group  │                  │  EC2 Instance   │
+ │ SSH (22)        │◄────────────────►│  t2.micro       │
+ │ HTTP (80)       │                  │ webserver1      │
+ └─────────────────┘                  └─────────────────┘
 ```
 
-### Workflow
-
-1. Terraform provisions an EC2 instance.
-2. A security group allowing SSH access is attached.
-3. An SNS topic is created.
-4. Email subscriptions are configured.
-5. CloudWatch monitors the EC2 CPU metric.
-6. When the threshold is exceeded, SNS sends an email notification.
-
 ---
 
-## ✨ Features
+## 📂 Project Structure
 
-* Modular Terraform codebase.
-* EC2 instance provisioning.
-* Automatic Security Group creation.
-* CloudWatch CPU monitoring.
-* SNS email notifications.
-* Environment-specific variable files.
-* Reusable Terraform modules.
-* Infrastructure deployment through code.
-
----
-
-## 📁 Project Structure
-
-```text
-cloudwatch/
-├── cloudwatch/
-│   ├── main.tf
-│   ├── outputs.tf
-│   └── variables.tf
-├── ec2/
-│   ├── main.tf
-│   ├── outputs.tf
-│   └── variables.tf
-├── envs/
-│   ├── dev.tfvars
-│   └── prod.tfvars
-├── sns/
-│   ├── main.tf
-│   ├── outputs.tf
-│   └── variables.tf
+```
+tf-modules-main/
 ├── main.tf
-└── variables.tf
+├── outputs.tf
+├── variables.tf
+├── terraform.tfvars
+├── README.md
+│
+├── vpc/
+│   ├── main.tf
+│   ├── variables.tf
+│   └── outputs.tf
+│
+├── security_group/
+│   ├── main.tf
+│   ├── variables.tf
+│   └── outputs.tf
+│
+└── ec2/
+    ├── main.tf
+    ├── variables.tf
+    └── outputs.tf
 ```
 
 ---
 
-## 🛠 Technologies Used
+## ⚙️ Terraform Modules
 
-* Terraform
-* AWS EC2
-* AWS CloudWatch
-* AWS SNS
-* AWS Security Groups
-* Infrastructure as Code (IaC)
+### 1. VPC Module
 
----
+Responsible for creating networking resources.
 
-## 📋 Prerequisites
+Resources provisioned:
 
-Before deploying this project, ensure you have:
+* AWS VPC
+* AWS Subnet
 
-* AWS Account
-* IAM User with appropriate permissions
-* AWS CLI configured
-* Terraform installed
-* Existing EC2 Key Pair
+Inputs:
 
-Example permissions include:
+| Variable            | Description                             |
+| ------------------- | --------------------------------------- |
+| `cidr_block`        | CIDR block for the VPC                  |
+| `subnet_cidr`       | CIDR block for the subnet               |
+| `availability_zone` | Availability Zone for subnet deployment |
 
-* EC2 Full Access
-* CloudWatch Full Access
-* SNS Full Access
+Outputs:
+
+* `vpc_id`
+* `subnet_id`
 
 ---
 
-## ⚙️ Configuration
+### 2. Security Group Module
 
-### Example dev.tfvars
+Responsible for creating network access rules.
 
-```hcl
-region         = "us-east-1"
-ami            = "ami-068c0051b15cdb816"
-instance_type  = "t2.micro"
-key_name       = "linuxserver"
-email          = "your-email@example.com"
+Ingress Rules:
+
+| Port | Protocol | Purpose     |
+| ---- | -------- | ----------- |
+| 22   | TCP      | SSH Access  |
+| 80   | TCP      | HTTP Access |
+
+Egress Rules:
+
+* Allows all outbound traffic.
+
+Input:
+
+| Variable | Description                                 |
+| -------- | ------------------------------------------- |
+| `vpc_id` | VPC ID where Security Group will be created |
+
+Output:
+
+* `security_group_id`
+
+---
+
+### 3. EC2 Module
+
+Responsible for provisioning compute resources.
+
+Resources:
+
+* EC2 Instance
+
+Default Configuration:
+
+| Parameter     | Value                   |
+| ------------- | ----------------------- |
+| AMI           | `ami-068c0051b15cdb816` |
+| Instance Type | `t2.micro`              |
+| Instance Name | `webserver1`            |
+
+Inputs:
+
+| Variable            | Description       |
+| ------------------- | ----------------- |
+| `ami`               | AMI ID            |
+| `instance_type`     | EC2 instance type |
+| `subnet_id`         | Target subnet     |
+| `security_group_id` | Security Group ID |
+| `instance_name`     | Name tag          |
+
+Output:
+
+* `instance_id`
+
+---
+
+## 🔄 Module Dependency Flow
+
 ```
+VPC Module
+   │
+   ├── vpc_id ───────────────► Security Group Module
+   │
+   └── subnet_id ────────────► EC2 Module
+                                      │
+Security Group Module ───────────────┘
+                  security_group_id
+```
+
+Terraform automatically handles these dependencies through module outputs and references.
 
 ---
 
 ## 🚀 Deployment Steps
+
+### Prerequisites
+
+* AWS Account
+* IAM User with required permissions
+* AWS CLI configured
+* Terraform installed
+
+Verify installations:
+
+```bash
+terraform version
+aws sts get-caller-identity
+```
+
+---
+
+### Clone Repository
+
+```bash
+git clone <repository-url>
+cd tf-modules-main
+```
+
+---
 
 ### Initialize Terraform
 
@@ -137,16 +210,20 @@ email          = "your-email@example.com"
 terraform init
 ```
 
+---
+
 ### Review Execution Plan
 
 ```bash
-terraform plan -var-file=envs/dev.tfvars
+terraform plan
 ```
+
+---
 
 ### Deploy Infrastructure
 
 ```bash
-terraform apply -var-file=envs/dev.tfvars
+terraform apply
 ```
 
 Type:
@@ -159,112 +236,71 @@ when prompted.
 
 ---
 
-## 📬 SNS Email Subscription
-
-During deployment:
-
-* Terraform creates an SNS topic.
-* An email subscription is created if an email address is provided.
-* AWS sends a confirmation email.
-
-You must confirm the subscription by clicking the link received in your inbox.
-
-Without confirmation, notifications will not be delivered.
-
----
-
-## 📈 CloudWatch Monitoring
-
-The intended configuration is:
-
-| Setting            | Value          |
-| ------------------ | -------------- |
-| Metric             | CPUUtilization |
-| Namespace          | AWS/EC2        |
-| Statistic          | Average        |
-| Threshold          | 80%            |
-| Period             | 60 seconds     |
-| Evaluation Periods | 1              |
-| Notification       | SNS Email      |
-
-When CPU usage exceeds the configured threshold, CloudWatch triggers the SNS topic.
-
----
-
-## 🔥 Simulating High CPU Usage
-
-The EC2 user data installs the `stress` utility:
+### View Outputs
 
 ```bash
-yum install stress -y
+terraform output
 ```
 
-After SSH into the instance:
+Example outputs:
 
-```bash
-stress --cpu 2 --timeout 300
-```
-
-This generates CPU load and can be used to test alert notifications.
-
----
-
-## 🧹 Destroy Infrastructure
-
-To avoid AWS charges:
-
-```bash
-terraform destroy -var-file=envs/dev.tfvars
+```text
+instance_id = i-xxxxxxxxxxxxxxxxx
+vpc_id      = vpc-xxxxxxxxxxxxxxxxx
 ```
 
 ---
 
-## 🔮 Future Enhancements
+### Destroy Infrastructure
 
-Potential improvements include:
+To avoid unnecessary AWS charges:
 
-* Custom VPC deployment.
-* Public and private subnet architecture.
-* Remote Terraform state using S3.
-* DynamoDB state locking.
-* IAM roles for EC2.
-* Auto Scaling Groups.
-* CloudWatch dashboards.
-* Multi-environment automation.
-* GitHub Actions CI/CD integration.
-* AWS Systems Manager Session Manager instead of SSH.
+```bash
+terraform destroy
+```
 
 ---
 
-## 💼 Skills Demonstrated
+## 📖 Terraform Concepts Demonstrated
 
-This project highlights experience with:
-
-* Infrastructure as Code
+* Infrastructure as Code (IaC)
 * Terraform Modules
-* AWS EC2 Provisioning
-* Security Group Management
-* Amazon SNS
-* Amazon CloudWatch
-* Environment Configuration
-* Terraform Variables
-* Monitoring and Alerting
-* Basic Infrastructure Troubleshooting
+* Module Reusability
+* Variable Management
+* Outputs and Inter-Module Communication
+* Resource Dependency Handling
+* AWS Networking Basics
+* EC2 Provisioning
+* Security Group Configuration
 
 ---
 
+## 🔍 Potential Improvements
 
-## 🎯 Learning Outcome
+This project is intentionally simple and educational. Production enhancements could include:
 
-This project strengthened practical understanding of:
+* Remote state using S3 and DynamoDB locking
+* Separate environments (dev/stage/prod)
+* NAT Gateway and Internet Gateway
+* Route Tables
+* Public and Private Subnets
+* User Data bootstrap scripts
+* Elastic IP association
+* Auto Scaling Groups
+* Application Load Balancer integration
+* Version constraints for Terraform and providers
 
-* Terraform module design,
-* AWS infrastructure provisioning,
-* Monitoring and alerting workflows,
-* Debugging infrastructure configurations,
-* Applying DevOps best practices to improve infrastructure quality.
+---
 
-While originally developed as a learning project, reviewing and refining the implementation provided valuable experience in identifying real-world operational gaps and improving overall infrastructure reliability.
+## 🧠 Key Learning Outcomes
+
+Through this project, gaining hands-on experience with:
+
+* Designing reusable Terraform modules.
+* Passing data between modules using outputs.
+* Structuring Terraform projects for maintainability.
+* Deploying AWS infrastructure using modular IaC practices.
+* Understanding how Terraform builds dependency graphs automatically.
 
 ---
 
